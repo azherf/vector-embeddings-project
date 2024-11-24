@@ -1,0 +1,1 @@
+This is a simple project that fetches movies from `TMDb`, creates vector embeddings for them using `Open API`, stores them in `DataStax Astra`, and then searches the movies that user gives as an input on the terminal.
