@@ -1,73 +1,58 @@
-import { DataAPIClient, VectorDoc, Collection } from '@datastax/astra-db-ts';
-import { OpenAI } from 'openai';
-import dotenv from 'dotenv';
+import { OpenAI } from "openai";
+import dotenv from "dotenv";
+import readline from 'readline';
+import { generateEmbedding } from "./utils";
+import { initCollection } from "./collection";
+import { fetchMovies, searchMovies } from "./movies";
 
 dotenv.config();
 
-const astraClient = new DataAPIClient(process.env.ASTRA_DB_APPLICATION_TOKEN!);
-const db = astraClient.db(process.env.ASTRA_DB_API_ENDPOINT!);
-
-(async () => {
-    const colls = await db.listCollections();
-    console.log('Connected to AstraDB:', colls);
-  })();
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-interface Movie extends VectorDoc {
-  title: string;
-  description: string;
-}
-
-async function generateEmbedding(text: string): Promise<number[]> {
-  const response = await openai.embeddings.create({
-    model: "text-embedding-3-small",
-    input: text,
-  });
-  return response.data[0].embedding;
-}
-
 async function main() {
-  let collection: Collection<Movie>;
-  collection = await db.collection<Movie>('movies');
-  if (!collection) {
-  // Create a collection
-  collection = await db.createCollection<Movie>('movies', {
-    vector: {
-      dimension: 1536,
-      metric: 'cosine'
-    }
-  });
+  
+  // Initialize the collection
+  const collection = await initCollection();
+  console.log("Collection created", collection);
+// }
 
-  console.log("Collection created");
-}
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
 
   // Insert a document with embedding
-  const movieDescription = "A classic sci-fi adventure about time travel and family.";
-  const embedding = await generateEmbedding(movieDescription);
+  // const movieDescription = "A classic sci-fi adventure about time travel and family.";
+  // let movies = await fetchMovies();
+  // console.log("Movies fetched:", movies);
+  // movies.forEach(async (movie) => {
+  //   const embedding = await generateEmbedding(openai, movie.description);
+  //   await collection.insertOne({
+  //     title: movie.title,
+  //     description: movie.description,
+  //     $vector: embedding
+  //   });
+  // });
 
-  await collection.insertOne({
-    title: "Back to the Future",
-    description: movieDescription,
-    $vector: embedding
+  let movies = await fetchMovies();
+  movies = await Promise.all(movies.map(async (movie) => {
+    const embedding = await generateEmbedding(openai, movie.description);
+    return {
+      title: movie.title,
+      description: movie.description,
+      $vector: embedding
+    };
+  }));
+
+  await collection.insertMany(movies);
+  console.log("Documents inserted");
+
+  // Perform a text search
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
   });
-
-  console.log("Document inserted");
-
-  // Perform a vector search
-  const searchDescription = "Time travel movie";
-  const searchEmbedding = await generateEmbedding(searchDescription);
-
-  const searchResults = await collection.find({
-    $vector: searchEmbedding
-  }, {
-    limit: 1,
-    sort: { $vector: searchEmbedding }
+  
+  rl.question('Enter a movie description to search: ', (answer) => {
+    searchMovies(answer, openai, collection).then(() => rl.close());
   });
-
-  console.log("Search results:", searchResults);
 }
 
 main().catch(console.error);
