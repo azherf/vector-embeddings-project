@@ -36,6 +36,9 @@ export async function searchMovies(description: string, openai: OpenAI, collecti
   console.log("Search results:");
   movies.forEach((movie) => {
     console.log(`Title: ${movie.title}`);
+    console.log(`Description: ${movie
+      .description.substring(0, 100)
+      .replace(/\n/g, " ")}...`);
   });
 
 }
