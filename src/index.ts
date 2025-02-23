@@ -12,6 +12,7 @@ async function main() {
   // Initialize the collection
   const collection = await initCollection();
   console.log("Collection created", collection);
+  console.log("Collection name:", collection.name);
 // }
 
   const openai = new OpenAI({
@@ -43,6 +44,7 @@ async function main() {
 
   await collection.insertMany(movies);
   console.log("Documents inserted");
+
 
   // Perform a text search
   const rl = readline.createInterface({
